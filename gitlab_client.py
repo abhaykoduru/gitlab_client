@@ -1,3 +1,4 @@
+import json
 import logging
 import requests
 from config import GITLAB_BASE_URL_V4_DEFAULT
@@ -6,7 +7,7 @@ from exceptions import MergeError
 logging.basicConfig(level=logging.DEBUG)
 
 
-class GitlabCli:
+class GitlabClient:
     def __init__(self, project_id, access_token, gitlab_base_url=GITLAB_BASE_URL_V4_DEFAULT, **kwargs):
         self.project_id = project_id
         self.access_token = access_token
@@ -23,7 +24,7 @@ class GitlabCli:
 
 
     def get_branch(self, branch_name):
-        response = self.__get(url="repository/branches/{branch_name}")
+        response = self.__get(url=f"repository/branches/{branch_name}")
         
         if response.ok:
             return response.json()
@@ -44,7 +45,7 @@ class GitlabCli:
 
 
     def delete_branch(self, branch_name):
-        response = self.__delete(url="repository/branches/{branch_name}")
+        response = self.__delete(url=f"repository/branches/{branch_name}")
         
         if response.ok:
             logging.info(f"Deleted branch: {branch_name}")
@@ -65,7 +66,7 @@ class GitlabCli:
 
 
     def delete_tag(self, tag_name):
-        response = self.__delete(url="repository/tags/{tag_name}")
+        response = self.__delete(url=f"repository/tags/{tag_name}")
         
         if response.ok:
             logging.info(f"Deleted tag: {tag_name}")
@@ -81,14 +82,17 @@ class GitlabCli:
         json_response = response.json()
         if response.ok:
             logging.info(f"Created merge request: {json_response['iid']} - {json_response['title']}")
-            return json_response['iid']
+            return {
+                "iid": json_response["iid"],
+                "web_url": json_response["web_url"]
+            }
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to create merge request: {error_message}")
 
 
     def delete_merge_request(self, merge_request_iid):
-        response = self.__delete(url="merge_request/{merge_request_iid}")
+        response = self.__delete(url=f"merge_request/{merge_request_iid}")
         
         if response.ok:
             logging.info(f"Deleted merge request: {merge_request_iid}")
@@ -98,7 +102,7 @@ class GitlabCli:
 
 
     def merge(self, merge_request_iid):
-        response = self.__put(url="merge_requests/{merge_request_iid}/merge")
+        response = self.__put(url=f"merge_requests/{merge_request_iid}/merge")
         
         json_response = response.json()
         if response.ok:
@@ -107,6 +111,17 @@ class GitlabCli:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to merge merge request {merge_request_iid}: {error_message}")
             raise MergeError
+    
+    # Pipelines
+    def list_pipelines_by_merge_request(self, merge_request_iid):
+        response = self.__get(url=f"merge_requests/{merge_request_iid}/pipelines")
+
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to get pipelines for merge request {merge_request_iid}: {error_message}")
     
     def __get(self, url):
         response = requests.get(
