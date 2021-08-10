@@ -2,7 +2,7 @@ import json
 import logging
 import requests
 from config import GITLAB_BASE_URL_V4_DEFAULT
-from exceptions import MergeError
+from exceptions import JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -75,6 +75,18 @@ class GitlabClient:
             logging.error(f"Unable to delete tag {tag_name}: {error_message}")
     
     # Merge requests
+    def get_merge_request(self, merge_request_iid):
+        response = self.__get(url=f"merge_requests/{merge_request_iid}")
+
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to get merge request: {error_message}")
+            raise MergeRequestError
+    
+    
     def create_merge_request(self, source_branch, target_branch, title, **kwargs):
         data={"source_branch": source_branch, "target_branch": target_branch, "title": title, **kwargs}
         response = self.__post(url="merge_requests", data=data)
@@ -89,6 +101,17 @@ class GitlabClient:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to create merge request: {error_message}")
+            raise MergeRequestError
+    
+
+    def get_or_create_merge_request(self, source_branch, target_branch):
+        try:
+            self.create_merge_request(source_branch, target_branch)
+        except MergeRequestError:
+            return {
+                "iid": 123,
+                "web_url": ""
+            }
 
 
     def delete_merge_request(self, merge_request_iid):
@@ -101,19 +124,28 @@ class GitlabClient:
             logging.error(f"Unable to delete merge request {merge_request_iid}: {error_message}")
 
 
-    def merge(self, merge_request_iid):
+    def accept_mr(self, merge_request_iid):
         response = self.__put(url=f"merge_requests/{merge_request_iid}/merge")
         
         json_response = response.json()
         if response.ok:
-            logging.info(f"Merged merge request: {json_response['iid']} - {json_response['title']}")
+            logging.info(f"Accepted merge request: {json_response['iid']} - {json_response['title']}")
         else:
             error_message = json_response.get("message", response.reason)
-            logging.error(f"Unable to merge merge request {merge_request_iid}: {error_message}")
+            logging.error(f"Unable to accept merge request {merge_request_iid}: {error_message}")
+            if response.status_code == 401:
+                logging.error(f"Unable to accept merge request because you don't have permissions to accept this merge request.")
+                raise PermissionError
+            elif response.status_code == 405:
+                logging.error(f"Unable to accept merge request because it is either a Draft, Closed, Pipeline Pending Completion, or Failed while requiring Success.")
+                raise UnableToAcceptMR
+            elif response.status_code == 406:
+                logging.error(f"Unable to accept merge request because of conflicts.")
+                raise MergeConflictError
             raise MergeError
     
     # Pipelines
-    def list_pipelines_by_merge_request(self, merge_request_iid):
+    def list_merge_request_pipelines(self, merge_request_iid):
         response = self.__get(url=f"merge_requests/{merge_request_iid}/pipelines")
 
         json_response = response.json()
@@ -123,10 +155,43 @@ class GitlabClient:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get pipelines for merge request {merge_request_iid}: {error_message}")
     
-    def __get(self, url):
+
+    def list_pipeline_jobs(self, pipeline_id, scopes=[]):
+        params = {
+            "scope[]": scopes
+        }
+        response = self.__get(url=f"pipelines/{pipeline_id}/jobs", params=params)
+        
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to get jobs for pipeline {pipeline_id}: {error_message}")
+    
+    def get_next_pipeline_job(self, pipeline_id):
+        manual_pipeline_jobs = self.list_pipeline_jobs(pipeline_id, scopes=["manual"])
+        
+        return manual_pipeline_jobs[-1] if manual_pipeline_jobs else []
+    
+    
+    def play_job(self,  job_id):
+        response = self.__post(url=f"jobs/{job_id}/play")
+
+        json_response = response.json()
+        if response.ok:
+            logging.info(f"Running job: {json_response['id']} - {json_response['name']}")
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to play job {job_id}: {error_message}")
+            raise JobError
+    
+    
+    def __get(self, url, params={}):
         response = requests.get(
             f"{self.gitlab_base_url}/projects/{self.project_id}/{url}",
-            headers={"PRIVATE-TOKEN": self.access_token}
+            headers={"PRIVATE-TOKEN": self.access_token},
+            params=params
         )
 
         return response
