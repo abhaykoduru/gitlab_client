@@ -7,7 +7,7 @@ from exceptions import JobError, MergeConflictError, MergeError, MergeRequestErr
 logging.basicConfig(level=logging.DEBUG)
 
 
-class GitlabClient:
+class Gitlab:
     def __init__(self, project_id, access_token, gitlab_base_url=GITLAB_BASE_URL_V4_DEFAULT, **kwargs):
         self.project_id = project_id
         self.access_token = access_token
