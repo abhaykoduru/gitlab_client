@@ -10,10 +10,10 @@ def load(filename):
 
 
 setup(
-    name="gitlab_wrapper",
+    name="gitlab_v4",
     version="0.0.1",
     description="Wrapper for Gitlab API v4",
-    py_modules=['gitlab_wrapper.py'],
+    py_modules=['gitlab_client.py'],
     package_dir={'': 'src'},
     packages=find_packages(),
     author="Abhay Santhosh Koduru",
