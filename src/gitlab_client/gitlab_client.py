@@ -8,6 +8,15 @@ logging.basicConfig(level=logging.INFO)
 
 
 class Gitlab:
+    """
+    Return an instance of the given Gitlab project.
+
+    Keyword arguments:
+    project_id -- Id of the Gitlab project you want to instantiate and use. Can be found your repository's home page.
+    access_token -- A personal access token generated from your Gitlab account.
+                    See https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html on how to generate one.
+    gitlab_base_url -- The base url where your repository is hosted.
+    """
     def __init__(self, project_id, access_token, gitlab_base_url=GITLAB_BASE_URL_V4_DEFAULT, **kwargs):
         self.project_id = project_id
         self.access_token = access_token
