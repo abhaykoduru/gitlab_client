@@ -1,7 +1,14 @@
+import gitlab_client
+import pathlib
 from setuptools import setup, find_packages
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+
+# The directory containing this file
+HERE = pathlib.Path(__file__).parent
+
+
+# The text of the README file
+README = (HERE / "README.md").read_text()
 
 
 def load(filename):
@@ -11,23 +18,23 @@ def load(filename):
 
 setup(
     name="gitlab_v4",
-    version="0.0.1",
+    version="0.0.2",
     description="Wrapper for Gitlab API v4",
-    py_modules=['gitlab_client.py'],
-    package_dir={'': 'src'},
-    packages=find_packages(),
+    long_description=README,
+    long_description_content_type="text/markdown",
+    url="https://gitlab.com/abhaykoduru/gitlab_client",
     author="Abhay Santhosh Koduru",
     author_email="k.abhaysanthosh@gmail.com",
-    url="https://gitlab.com/abhaykoduru/gitlab_client",
-    install_requires=load("requirements.txt"),
+    license="MIT",
     classifiers=[
+        "Intended Audience :: Developers",
         "Programming Language :: Python :: 3.0",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent",
         "License :: OSI Approved :: MIT License",
-    ], 
-    # complete list of classifiers at https://pypi.org/classifiers
-    long_description=long_description,
-    long_description_content_type="text/markdown",
+    ],
+    packages=["gitlab_client"],
+    include_package_data=True,
+    install_requires=load("requirements.txt")
 )
