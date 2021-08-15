@@ -1,4 +1,3 @@
-import json
 import logging
 import requests
 from config import GITLAB_BASE_URL_V4_DEFAULT
