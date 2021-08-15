@@ -1,7 +1,7 @@
 import logging
 import requests
-from config import GITLAB_BASE_URL_V4_DEFAULT
-from exceptions import JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
+from gitlab_client.config import GITLAB_BASE_URL_V4_DEFAULT
+from gitlab_client.exceptions import JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
 
 logging.basicConfig(level=logging.INFO)
 
