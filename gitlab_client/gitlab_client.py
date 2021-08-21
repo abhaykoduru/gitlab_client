@@ -1,7 +1,7 @@
 import logging
 import requests
 from gitlab_client.config import GITLAB_BASE_URL_V4_DEFAULT
-from gitlab_client.exceptions import JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
+from gitlab_client.exceptions import BranchError, JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,15 +23,25 @@ class Gitlab:
     
     # Branches
     def list_branches(self):
+        """
+        Returns list of branches.
+        """
         response = self.__get(url="repository/branches")
 
         if response.ok:
             return response.json()
         
-        return []
+        logging.error("Unable to get list of branches.")
+        raise BranchError
 
 
     def get_branch(self, branch_name):
+        """
+        Returns the branch with the given name.
+
+        Keyword arguments:
+        branch_name -- Name of the branch you want to get.
+        """
         response = self.__get(url=f"repository/branches/{branch_name}")
         
         if response.ok:
@@ -42,17 +52,31 @@ class Gitlab:
 
 
     def create_branch(self, branch_name, branch_from):
+        """
+        Creates a branch with the given name.
+
+        Keyword arguments:
+        branch_name -- Name of the branch you want to create.
+        branch_from -- Name of the branch you want to branch off from.
+        """
         data={"branch": branch_name, "ref": branch_from}
         response = self.__post(url="repository/branches", data=data)
         
         if response.ok:
             logging.info(f"Created branch: {response.json()['name']}")
+            #TODO: Return response ?
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create branch {branch_name}: {error_message}")
 
 
     def delete_branch(self, branch_name):
+        """
+        Deletes the branch with the given name.
+
+        Keyword arguments:
+        branch_name -- Name of the branch you want to delete.
+        """
         response = self.__delete(url=f"repository/branches/{branch_name}")
         
         if response.ok:
@@ -63,17 +87,31 @@ class Gitlab:
     
     # Tags
     def create_tag(self, tag_name, tag_on):
+        """
+        Creates a tag with the given tag_name on given ref.
+
+        Keyword arguments:
+        tag_name -- Name of the tag you want to create.
+        tag_on -- Ref (Branch name or Commit SHA) you want to create the tag on.
+        """
         data={"tag_name": tag_name, "ref": tag_on, "message": f"Automated release {tag_name}"}
         response = self.__post(url="repository/tags", data=data)
         
         if response.ok:
             logging.info(f"Created tag: {response.json()['name']}")
+            #TODO: return response ?
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create tag {tag_name}: {error_message}")
 
 
     def delete_tag(self, tag_name):
+        """
+        Deletes tag with the given name.
+
+        Keyword arguments:
+        tag_name -- Name of the tag you want to delete.
+        """
         response = self.__delete(url=f"repository/tags/{tag_name}")
         
         if response.ok:
@@ -84,6 +122,12 @@ class Gitlab:
     
     # Merge requests
     def get_merge_request(self, merge_request_iid):
+        """
+        Return merge request with the given iid. 
+
+        Keyword arguments:
+        merge_request_iid -- iid of the merge request you want to get.
+        """
         response = self.__get(url=f"merge_requests/{merge_request_iid}")
 
         json_response = response.json()
@@ -96,6 +140,15 @@ class Gitlab:
     
     
     def create_merge_request(self, source_branch, target_branch, title, **kwargs):
+        """
+        Create a merge request.
+
+        Keyword arguments:
+        source_branch -- Source branch name for the merge request.
+        target_branch -- Target branch name for the merge request.
+        title -- Title of the merge request.
+        **kwargs -- Any additional options you want to pass.
+        """
         data={"source_branch": source_branch, "target_branch": target_branch, "title": title, **kwargs}
         response = self.__post(url="merge_requests", data=data)
         
