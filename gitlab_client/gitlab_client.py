@@ -1,7 +1,15 @@
 import logging
 import requests
 from gitlab_client.config import GITLAB_BASE_URL_V4_DEFAULT
-from gitlab_client.exceptions import BranchError, JobError, MergeConflictError, MergeError, MergeRequestError, UnableToAcceptMR
+from gitlab_client.exceptions import (
+    BranchError,
+    JobError,
+    MergeConflictError,
+    MergeError,
+    MergeRequestError,
+    UnableToAcceptMR,
+    PipelineError
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -204,6 +212,12 @@ class Gitlab:
             raise MergeRequestError(error_message)
 
     def update_merge_request(self, merge_request_iid, **kwargs):
+        """
+        Updates the given merge request with new given parameters.
+
+        Keyword arguments:
+        merge_reques_iid -  iid of the merge request you want to update.
+        """
         data = {**kwargs}
         response = self.__put(url=f"merge_requests/{merge_request_iid}", data=data)
 
@@ -217,6 +231,12 @@ class Gitlab:
             raise MergeRequestError
 
     def delete_merge_request(self, merge_request_iid):
+        """
+        Delete merge request with the given iid.
+
+        Keyword arguments:
+        merge_request_iid - iid of the merge request you want to delete.
+        """
         response = self.__delete(url=f"merge_request/{merge_request_iid}")
         
         if response.ok:
@@ -226,6 +246,12 @@ class Gitlab:
             logging.error(f"Unable to delete merge request {merge_request_iid}: {error_message}")
 
     def accept_mr(self, merge_request_iid):
+        """
+        Attempt to merge given merge request. Raises error if unable to merge.
+
+        Keyword arguments:
+        merge_request_iid - iid of the merge request you want to merge.
+        """
         response = self.__put(url=f"merge_requests/{merge_request_iid}/merge")
         
         json_response = response.json()
@@ -246,7 +272,30 @@ class Gitlab:
             raise MergeError
 
     # Pipelines
+    def get_pipeline(self, pipeline_id):
+        """
+        Return the pipeline with given pipeline_id
+
+        Keyword arguments:
+        pipeline_id - id of the pipeline you want to get.
+        """
+        response = self.__get(url=f"pipelines/{pipeline_id}")
+        
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to get pipeline: {error_message}")
+            raise PipelineError
+    
     def list_merge_request_pipelines(self, merge_request_iid):
+        """
+        List all pipelines for given merge_request_iid
+
+        Keyword arguments:
+        merge_request_iid - iid of the merge request for which you want to list pipelines.
+        """
         response = self.__get(url=f"merge_requests/{merge_request_iid}/pipelines")
 
         json_response = response.json()
@@ -257,6 +306,12 @@ class Gitlab:
             logging.error(f"Unable to get pipelines for merge request {merge_request_iid}: {error_message}")
     
     def list_pipeline_jobs(self, pipeline_id, scopes=[]):
+        """
+        List all jobs for given pipeline filtered by given scopes.
+
+        Keyword arguments:
+        pipeline_id - id of the pipeline for which you want to list jobs.
+        """
         params = {
             "scope[]": scopes
         }
@@ -270,11 +325,23 @@ class Gitlab:
             logging.error(f"Unable to get jobs for pipeline {pipeline_id}: {error_message}")
 
     def get_next_pipeline_job(self, pipeline_id):
+        """
+        Return next manual job for given pipeline.
+
+        Keyword arguments:
+        pipeline_id - id of the pipeline.
+        """
         manual_pipeline_jobs = self.list_pipeline_jobs(pipeline_id, scopes=["manual"])
         
         return manual_pipeline_jobs[-1] if manual_pipeline_jobs else []
         
     def play_job(self,  job_id):
+        """
+        Run the given job.
+
+        Keyword arguments:
+        job_id - id of the job you want to run.
+        """
         response = self.__post(url=f"jobs/{job_id}/play")
 
         json_response = response.json()

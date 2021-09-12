@@ -42,6 +42,13 @@ class MergeConflictError(MergeRequestError):
 
 class JobError(Exception):
     """
-    Raised on job related API failures. See subclasses for more specifi error type.
+    Raised on job related API failures. See subclasses for more specific error type.
+    """
+    pass
+
+
+class PipelineError(Exception):
+    """
+    Raised on pipeline related API failures. See subclasses for more specific error type.
     """
     pass
