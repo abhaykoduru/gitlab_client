@@ -34,7 +34,6 @@ class Gitlab:
         logging.error("Unable to get list of branches.")
         raise BranchError
 
-
     def get_branch(self, branch_name):
         """
         Returns the branch with the given name.
@@ -49,7 +48,6 @@ class Gitlab:
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to get branch {branch_name}: {error_message}")
-
 
     def create_branch(self, branch_name, branch_from):
         """
@@ -69,7 +67,6 @@ class Gitlab:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create branch {branch_name}: {error_message}")
 
-
     def delete_branch(self, branch_name):
         """
         Deletes the branch with the given name.
@@ -84,7 +81,7 @@ class Gitlab:
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to delete branch {branch_name}: {error_message}")
-    
+
     # Tags
     def create_tag(self, tag_name, tag_on):
         """
@@ -104,7 +101,6 @@ class Gitlab:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create tag {tag_name}: {error_message}")
 
-
     def delete_tag(self, tag_name):
         """
         Deletes tag with the given name.
@@ -119,7 +115,7 @@ class Gitlab:
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to delete tag {tag_name}: {error_message}")
-    
+
     # Merge requests
     def get_merge_request(self, merge_request_iid):
         """
@@ -137,8 +133,24 @@ class Gitlab:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get merge request: {error_message}")
             raise MergeRequestError
-    
-    
+        
+    def list_merge_requests(self, **kwargs):
+        """
+        Filter and return merge requests based on given filter params.
+
+        keyword arguments:
+        **kwargs -- Dictionary of filter params.
+        """
+        response = self.__get(url="merge_requests", params=kwargs)
+
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to filter merge requests: {error_message}")
+            raise MergeRequestError
+
     def create_merge_request(self, source_branch, target_branch, title, **kwargs):
         """
         Create a merge request.
@@ -155,25 +167,54 @@ class Gitlab:
         json_response = response.json()
         if response.ok:
             logging.info(f"Created merge request: {json_response['iid']} - {json_response['title']}")
-            return {
-                "iid": json_response["iid"],
-                "web_url": json_response["web_url"]
-            }
+            return json_response
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to create merge request: {error_message}")
-            raise MergeRequestError
+            raise MergeRequestError(error_message)
     
+    def get_or_create_merge_request(self, source_branch, target_branch, title, **kwargs):
+        """
+        Attempts to create and return a merge request with given source_branch, target_branch, title, and kwargs.
+        If a merge request already exists, returns existing merge request.
 
-    def get_or_create_merge_request(self, source_branch, target_branch):
+        Keyword arguments:
+        source_branch -- Source branch name for the merge request.
+        target_branch -- Target branch name for the merge request.
+        title -- Title of the merge request.
+        **kwargs -- Any additional options you want to pass.
+        """
         try:
-            self.create_merge_request(source_branch, target_branch)
-        except MergeRequestError:
-            return {
-                "iid": 123,
-                "web_url": ""
-            }
+            new_merge_request = self.create_merge_request(source_branch, target_branch, title, **kwargs)
+            logging.info(f"Created merge request: {new_merge_request['iid']} - {new_merge_request['title']}")
+            return new_merge_request
+        except MergeRequestError as e:
+            for message in e:
+                if message.startswith("Another open merge request already exists for this source branch"):
+                    merge_request_iid = message.split("!")[1]
+                    merge_request = self.get_merge_request(merge_request_iid)
+                    logging.info(
+                        f"Unable to create new merge request because one already exists "
+                        f"for this source branch: {merge_request['iid']} - {merge_request['title']}"
+                    )
+                    return merge_request
+            
+            error_message = f"Unable to get or create merge request: {e}"
+            logging.error(error_message)
+            raise MergeRequestError(error_message)
 
+    def update_merge_request(self, merge_request_iid, **kwargs):
+        data = {**kwargs}
+        response = self.__put(url=f"merge_requests/{merge_request_iid}", data=data)
+
+        json_response = response.json()
+        if response.ok:
+            logging.info(f"Updated merge request: {json_response['iid']}")
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to update merge request: {error_message}")
+            raise MergeRequestError
 
     def delete_merge_request(self, merge_request_iid):
         response = self.__delete(url=f"merge_request/{merge_request_iid}")
@@ -183,7 +224,6 @@ class Gitlab:
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to delete merge request {merge_request_iid}: {error_message}")
-
 
     def accept_mr(self, merge_request_iid):
         response = self.__put(url=f"merge_requests/{merge_request_iid}/merge")
@@ -204,7 +244,7 @@ class Gitlab:
                 logging.error(f"Unable to accept merge request because of conflicts.")
                 raise MergeConflictError
             raise MergeError
-    
+
     # Pipelines
     def list_merge_request_pipelines(self, merge_request_iid):
         response = self.__get(url=f"merge_requests/{merge_request_iid}/pipelines")
@@ -216,7 +256,6 @@ class Gitlab:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get pipelines for merge request {merge_request_iid}: {error_message}")
     
-
     def list_pipeline_jobs(self, pipeline_id, scopes=[]):
         params = {
             "scope[]": scopes
@@ -229,13 +268,12 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get jobs for pipeline {pipeline_id}: {error_message}")
-    
+
     def get_next_pipeline_job(self, pipeline_id):
         manual_pipeline_jobs = self.list_pipeline_jobs(pipeline_id, scopes=["manual"])
         
         return manual_pipeline_jobs[-1] if manual_pipeline_jobs else []
-    
-    
+        
     def play_job(self,  job_id):
         response = self.__post(url=f"jobs/{job_id}/play")
 
@@ -246,8 +284,7 @@ class Gitlab:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to play job {job_id}: {error_message}")
             raise JobError
-    
-    
+        
     def __get(self, url, params={}):
         response = requests.get(
             f"{self.gitlab_base_url}/projects/{self.project_id}/{url}",
