@@ -1,15 +1,11 @@
 import codecs
 import os.path
 import re
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 # The directory containing this file
 HERE = os.path.abspath(os.path.dirname(__file__))
-
-
-# The text of the README file
-README = (HERE / "README.md").read_text()
 
 
 def load(filename):
@@ -32,9 +28,9 @@ def find_version(*file_paths):
 
 setup(
     name="gitlab_v4",
-    version="0.0.3",
+    version=find_version("gitlab_client", "__init__.py"),
     description="Wrapper for Gitlab API v4",
-    long_description=README,
+    long_description=read("README.md"),
     long_description_content_type="text/markdown",
     url="https://gitlab.com/abhaykoduru/gitlab_client",
     author="Abhay Santhosh Koduru",
