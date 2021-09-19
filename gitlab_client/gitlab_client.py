@@ -1,5 +1,7 @@
+import json
 import logging
 import requests
+from urllib.parse import quote
 from gitlab_client.config import GITLAB_BASE_URL_V4_DEFAULT
 from gitlab_client.exceptions import (
     BranchError,
@@ -8,7 +10,8 @@ from gitlab_client.exceptions import (
     MergeError,
     MergeRequestError,
     UnableToAcceptMR,
-    PipelineError
+    PipelineError,
+    TagError
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -49,13 +52,15 @@ class Gitlab:
         Keyword arguments:
         branch_name -- Name of the branch you want to get.
         """
-        response = self.__get(url=f"repository/branches/{branch_name}")
+        encoded_branch_name = quote(branch_name, safe="")
+        response = self.__get(url=f"repository/branches/{encoded_branch_name}")
         
         if response.ok:
             return response.json()
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to get branch {branch_name}: {error_message}")
+            raise BranchError(error_message)
 
     def create_branch(self, branch_name, branch_from):
         """
@@ -74,6 +79,29 @@ class Gitlab:
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create branch {branch_name}: {error_message}")
+            raise BranchError(error_message)
+
+    def get_or_create_branch(self, branch_name, branch_from):
+        """
+        Attempts to create and return a branch with given branch_name and branch_from.
+        If a branch already exists, returns existing branch.
+
+        Keyword arguments:
+        branch_name -- Name of the branch you want to create.
+        branch_from -- Name of the branch you want to branch off from.
+        """
+        try:
+            branch = self.create_branch(branch_name, branch_from)
+            return branch
+        except BranchError as error:
+            if error == "Branch already exists":
+                branch = self.get_branch(branch_name)
+                return branch
+            else:
+                error_message = f"Unable to get or create branch: {error}"
+                logging.error(error_message)
+                raise BranchError(error_message)
+                
 
     def delete_branch(self, branch_name):
         """
@@ -91,6 +119,23 @@ class Gitlab:
             logging.error(f"Unable to delete branch {branch_name}: {error_message}")
 
     # Tags
+    def get_tag(self, tag_name):
+        """
+        Returns the tag with the given name.
+
+        Keyword arguments:
+        tag_name -- Name of the tag you want to get.
+        """
+        response = self.__get(url=f"repository/tags/{tag_name}")
+
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to get tag {tag_name}: {error_message}")
+            raise TagError(error_message)
+
     def create_tag(self, tag_name, tag_on):
         """
         Creates a tag with the given tag_name on given ref.
@@ -102,12 +147,36 @@ class Gitlab:
         data={"tag_name": tag_name, "ref": tag_on, "message": f"Automated release {tag_name}"}
         response = self.__post(url="repository/tags", data=data)
         
+        json_response = response.json()
         if response.ok:
             logging.info(f"Created tag: {response.json()['name']}")
-            #TODO: return response ?
+            return json_response
         else:
             error_message = response.json().get("message", response.reason)
             logging.error(f"Unable to create tag {tag_name}: {error_message}")
+            raise TagError(error_message)
+
+    def get_or_create_tag(self, tag_name, tag_on):
+        """
+        Attempts to create and return a tag with given tag_name and tag_on.
+        If a tag already exists, returns existing tag.
+        
+        Keyword arguments:
+        tag_name -- Name of the tag you want to create.
+        tag_on -- Ref (Branch name or Commit SHA) you want to create the tag on.
+        """
+        try:
+            tag = self.create_tag(tag_name, tag_on)
+            return tag
+        except TagError as error:
+            print(error)
+            if error == f"Tag {tag_name} already exists":
+                tag = self.get_tag(tag_name)
+                return tag
+            else:
+                error_message = f"Unable to get or create tag: {error}"
+                logging.error(error_message)
+                raise TagError(error_message)
 
     def delete_tag(self, tag_name):
         """
@@ -140,7 +209,7 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get merge request: {error_message}")
-            raise MergeRequestError
+            raise MergeRequestError(error_message)
         
     def list_merge_requests(self, **kwargs):
         """

@@ -52,3 +52,10 @@ class PipelineError(Exception):
     Raised on pipeline related API failures. See subclasses for more specific error type.
     """
     pass
+
+
+class TagError(Exception):
+    """
+    Raised on tag related API failures. See subclasses for more specific error type.
+    """
+    pass
