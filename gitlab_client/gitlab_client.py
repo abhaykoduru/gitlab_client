@@ -341,6 +341,23 @@ class Gitlab:
             raise MergeError
 
     # Pipelines
+    def list_pipelines(self, **kwargs):
+        """
+        Filter and return pipelines based on given filter params.
+
+        keyword arguments:
+        **kwargs -- Dictionary of filter params.
+        """
+        response = self.__get(url="pipelines", params=kwargs)
+
+        json_response = response.json()
+        if response.ok:
+            return json_response
+        else:
+            error_message = json_response.get("message", response.reason)
+            logging.error(f"Unable to filter pipelines: {error_message}")
+            raise PipelineError(error_message)
+
     def get_pipeline(self, pipeline_id):
         """
         Return the pipeline with given pipeline_id
