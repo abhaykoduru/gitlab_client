@@ -42,8 +42,9 @@ class Gitlab:
         if response.ok:
             return response.json()
         
-        logging.error("Unable to get list of branches.")
-        raise BranchError
+        error_message = response.json().get("message", response.reason)
+        logging.error(f"Unable to get list of branches: {error_message}")
+        raise BranchError(error_message)
 
     def get_branch(self, branch_name):
         """
@@ -226,7 +227,7 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to filter merge requests: {error_message}")
-            raise MergeRequestError
+            raise MergeRequestError(error_message)
 
     def create_merge_request(self, source_branch, target_branch, title, **kwargs):
         """
@@ -297,7 +298,7 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to update merge request: {error_message}")
-            raise MergeRequestError
+            raise MergeRequestError(error_message)
 
     def delete_merge_request(self, merge_request_iid):
         """
@@ -331,14 +332,14 @@ class Gitlab:
             logging.error(f"Unable to accept merge request {merge_request_iid}: {error_message}")
             if response.status_code == 401:
                 logging.error(f"Unable to accept merge request because you don't have permissions to accept this merge request.")
-                raise PermissionError
+                raise PermissionError(error_message)
             elif response.status_code == 405:
                 logging.error(f"Unable to accept merge request because it is either a Draft, Closed, Pipeline Pending Completion, or Failed while requiring Success.")
-                raise UnableToAcceptMR
+                raise UnableToAcceptMR(error_message)
             elif response.status_code == 406:
                 logging.error(f"Unable to accept merge request because of conflicts.")
-                raise MergeConflictError
-            raise MergeError
+                raise MergeConflictError(error_message)
+            raise MergeError(error_message)
 
     # Pipelines
     def list_pipelines(self, **kwargs):
@@ -373,7 +374,7 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to get pipeline: {error_message}")
-            raise PipelineError
+            raise PipelineError(error_message)
     
     def list_merge_request_pipelines(self, merge_request_iid):
         """
@@ -436,7 +437,7 @@ class Gitlab:
         else:
             error_message = json_response.get("message", response.reason)
             logging.error(f"Unable to play job {job_id}: {error_message}")
-            raise JobError
+            raise JobError(error_message)
         
     def __get(self, url, params={}):
         response = requests.get(
